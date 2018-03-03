@@ -23,11 +23,6 @@ def squeeze(input, channels, layer_num):
         onebyone = tf.nn.conv2d(input, weights, strides=(1, 1, 1, 1), padding='VALID') + biases
         A = tf.nn.relu(onebyone)
 
-        tf.summary.histogram('weights', weights)
-        tf.summary.histogram('biases', biases)
-        tf.summary.histogram('logits', onebyone)
-        tf.summary.histogram('activations', A)
-
     return A
 
 # define expand module
@@ -50,20 +45,10 @@ def expand(input, channels_1by1, channels_3by3, layer_num):
         onebyone = tf.nn.conv2d(input, weights1x1, strides=(1, 1, 1, 1), padding='VALID') + biases1x1
         A_1x1 = tf.nn.relu(onebyone)
 
-        tf.summary.histogram('weights_1x1', weights1x1)
-        tf.summary.histogram('biases_1x1', biases1x1)
-        tf.summary.histogram('logits_1x1', onebyone)
-        tf.summary.histogram('activations_1x1', A_1x1)
-
         weights3x3 = tf.Variable(tf.contrib.layers.xavier_initializer()([1, 1, input_channels, channels_3by3]))
         biases3x3 = tf.Variable(tf.zeros([1, 1, 1, channels_3by3]), name='biases')
         threebythree = tf.nn.conv2d(input, weights3x3, strides=(1, 1, 1, 1), padding='SAME') + biases3x3
         A_3x3 = tf.nn.relu(threebythree)
-
-        tf.summary.histogram('weights_3x3', weights3x3)
-        tf.summary.histogram('biases_3x3', biases3x3)
-        tf.summary.histogram('logits_3x3', threebythree)
-        tf.summary.histogram('activations_3x3', A_3x3)
 
     return tf.concat([A_1x1, A_3x3], axis=3)
 
@@ -101,7 +86,6 @@ def model(input_height, input_width, input_channels, output_classes, pooling_siz
         in_training = tf.placeholder(tf.bool, shape=())
         learning_rate = tf.placeholder(tf.float32, shape=())
 
-        tf.summary.image('input image', input_image)
         # define structure of the net
         # layer 1 - conv 1
         with tf.name_scope('conv_1'):
@@ -109,10 +93,6 @@ def model(input_height, input_width, input_channels, output_classes, pooling_siz
             b_conv1 = tf.Variable(tf.zeros([1, 1, 1, 96]))
             X_1 = tf.nn.conv2d(input_image, W_conv1, strides=(1, 2, 2, 1), padding='VALID') + b_conv1
             A_1 = tf.nn.relu(X_1)
-            tf.summary.histogram('conv1 weights', W_conv1)
-            tf.summary.histogram('conv1 biases', b_conv1)
-            tf.summary.histogram('conv1 logits', X_1)
-            tf.summary.histogram('conv1 activations', A_1)
 
         # layer 2 - maxpool
         maxpool_1 = tf.nn.max_pool(A_1, ksize=pooling_size, strides=(1, 2, 2, 1), padding='VALID', name='maxpool_1')
@@ -148,11 +128,6 @@ def model(input_height, input_width, input_channels, output_classes, pooling_siz
             conv_10 = tf.nn.conv2d(dropout_9, W_conv10, strides=(1, 1, 1,1), padding='VALID') + b_conv10
             A_conv_10 = tf.nn.relu(conv_10)
 
-            tf.summary.histogram('conv10 weights', W_conv10)
-            tf.summary.histogram('conv10 biases', b_conv10)
-            tf.summary.histogram('conv10 logits', conv_10)
-            tf.summary.histogram('conv10 activations', A_conv_10)
-
         # avg pooling to get [1 x 1 x num_classes] must average over entire window oh H x W from input layer
         _, H_last, W_last, _ = A_conv_10.get_shape().as_list()
         pooled = tf.nn.avg_pool(A_conv_10, ksize=(1, H_last, W_last, 1), strides=(1, 1, 1, 1), padding='VALID')
@@ -161,19 +136,13 @@ def model(input_height, input_width, input_channels, output_classes, pooling_siz
         # loss + optimizer
         one_hot_labels = tf.one_hot(labels, output_classes, name='one_hot_encoding')
         loss = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits_v2(labels=one_hot_labels, logits=logits))
-        tf.summary.scalar('loss', loss)
         optimizer = tf.train.AdamOptimizer(learning_rate).minimize(loss)
 
         # accuracy
         predictions = tf.reshape(tf.argmax(tf.nn.softmax(logits), axis=1, output_type=tf.int32), [-1, 1])
         accuracy = tf.reduce_mean(tf.cast(tf.equal(predictions, labels), dtype=tf.float32))
-        tf.summary.scalar('train_accuracy', accuracy)
 
-        summaries = tf.summary.merge_all()
-        test_accuracy_summary = tf.summary.scalar('test_accuracy', accuracy)
-
-    return (graph, input_image, labels, in_training, learning_rate,
-            loss, accuracy, summaries, test_accuracy_summary, optimizer)
+    return graph, input_image, labels, in_training, learning_rate, loss, accuracy, optimizer
 
 def next_experiment_dir(top_dir):
     """We need directory with consecutive subdirectories to store results of consecutive trainings. """
@@ -233,16 +202,10 @@ def run(iterations, minibatch_size):
     x_test, _, _ = prepare_input(x_test, mu_train, sigma_train)
     train_samples = x_train.shape[0]
 
-    (graph, input_batch, labels, in_training, learning_rate,
-     loss, accuracy, summaries, test_accuracy_summary, optimizer) = \
-        model(input_height, input_width, input_channels, output_classes, (1, 2, 2, 1))
+    graph, input_batch, labels, in_training, learning_rate, loss, accuracy, optimizer = model(input_height, input_width, input_channels, output_classes, (1, 2, 2, 1))
 
     with tf.Session(graph=graph) as sess:
         sess.run(tf.global_variables_initializer())
-
-        experiment_dir = next_experiment_dir('/tmp/squeezenet')
-        print("Creating output dir:", experiment_dir)
-        train_writer = tf.summary.FileWriter(experiment_dir, sess.graph)
 
         for i in range(iterations):
             # pick random minibatch
@@ -251,30 +214,21 @@ def run(iterations, minibatch_size):
             mb_data = x_train[mb_start:mb_end, :, :, :]
             mb_labels = y_train[mb_start:mb_end, :]
 
-            feed_dict = {
+            _loss, _accuracy, s, _ = sess.run([loss, accuracy, optimizer], feed_dict = {
                 input_batch: mb_data,
                 labels: mb_labels,
                 in_training: True,
                 learning_rate: 0.0004
-            }
-
-            collectibles = [loss, accuracy, summaries, optimizer]
-
-            loss_val, accuracy_val, s, _ = sess.run(collectibles, feed_dict=feed_dict)
-
-            train_writer.add_summary(s, i)
+            })
 
             if i % 100 == 0:
-                feed_dict = {
+                test_acc, sum_acc = sess.run([accuracy], feed_dict = {
                     input_batch: x_test,
                     labels: y_test,
                     in_training: False,
                     learning_rate: 0.0004
-                }
-                test_acc, sum_acc = sess.run([accuracy, test_accuracy_summary], feed_dict=feed_dict)
-                train_writer.add_summary(sum_acc, i)
-                print('Iteration: {}\t loss: {:.3f}\t accuracy: {:.3f}\t test accuracy: {:.3f}'.format(
-                    i, loss_val, accuracy_val, test_acc))
+                })
+                print('Iteration: {}\t loss: {:.3f}\t accuracy: {:.3f}\t test accuracy: {:.3f}'.format(i, _loss, _accuracy, test_acc))
 
 
 start = dt.now()
@@ -289,7 +243,6 @@ print('running time:', dt.now() - start)
 #   run validation step
 #   write results to output
 
-# run testing summary
 # print results
 # bonus: save trained model
 
