@@ -234,15 +234,3 @@ def run(iterations, minibatch_size):
 start = dt.now()
 run(10001, 128)
 print('running time:', dt.now() - start)
-
-
-# define session
-# for n steps
-#   create minibatch
-#   run training step
-#   run validation step
-#   write results to output
-
-# print results
-# bonus: save trained model
-
