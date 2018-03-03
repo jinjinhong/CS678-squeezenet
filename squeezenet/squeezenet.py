@@ -79,9 +79,7 @@ def model(input_height, input_width, input_channels, output_classes, pooling_siz
     """
     with tf.Graph().as_default() as graph:
         # define placeholders
-        input_image = tf.placeholder(tf.float32,
-                                     shape=[None, input_height, input_width, input_channels],
-                                     name='input_image')
+        input_image = tf.placeholder(tf.float32, shape=[None, input_height, input_width, input_channels], name='input_image')
         labels = tf.placeholder(tf.int32, shape=[None, 1])
         in_training = tf.placeholder(tf.bool, shape=())
         learning_rate = tf.placeholder(tf.float32, shape=())
@@ -117,9 +115,7 @@ def model(input_height, input_width, input_channels, output_classes, pooling_siz
         # layer 12 - fire 9 + dropout
         fire_9 = fire_module(maxpool_8, 64, 256, 256, layer_num=9)
 
-        dropout_9 = tf.cond(in_training,
-                            lambda: tf.nn.dropout(fire_9, keep_prob=0.5),
-                            lambda: fire_9)
+        dropout_9 = tf.cond(in_training, lambda: tf.nn.dropout(fire_9, keep_prob=0.5), lambda: fire_9)
 
         # layer 13 - final
         with tf.name_scope('final'):
@@ -144,14 +140,6 @@ def model(input_height, input_width, input_channels, output_classes, pooling_siz
 
     return graph, input_image, labels, in_training, learning_rate, loss, accuracy, optimizer
 
-def next_experiment_dir(top_dir):
-    """We need directory with consecutive subdirectories to store results of consecutive trainings. """
-    dirs = [int(dirname) for dirname in os.listdir(top_dir) if os.path.isdir(os.path.join(top_dir, dirname))]
-    if len(dirs) > 0:
-        return os.path.join(top_dir, str(max(dirs) + 1))
-    else:
-        return os.path.join(top_dir, '1')
-
 def prepare_input(data, mu=None, sigma=None):
     """
     Normalizes pixels across dataset. For training set, calculate mu and sigma. For test set, transfer these
@@ -170,33 +158,31 @@ def prepare_input(data, mu=None, sigma=None):
     data = data / sigma
     return data, mu, sigma
 
+def load_dataset(dataset = "cifar10"):
+    """
+    Loads data set and returns information about dimensionality and train/test splits
+
+    :param dataset: string value representing which data set to load
+    :return: image_shape (h, w, d), num_classes, train_date (x, y), test_data (x, y)
+    """
+    if dataset == "cifar10":
+        return (32, 32, 3), 10, cifar10.load_data()
+    elif dataset == "mnist":
+        (x_train, y_train), (x_test, y_test) = mnist.load_data()
+        x_train = np.expand_dims(x_train, -1)
+        x_test = np.expand_dims(x_test, -1)
+        y_train = np.expand_dims(y_train, -1)
+        y_test = np.expand_dims(y_test, -1)
+        return (28, 28, 1), 10, (x_train, y_train), (x_test, y_test)
+    elif dataset == "imagenet":
+        raise NotImplementedError("Haven't figured out ImageNet yet...")
+        # return (227, 227, 3), 1500, ?, ?
+    else:
+        raise NotImplementedError("Unsupported data set: {}".format(dataset))
+
 def run(iterations, minibatch_size):
-    """
-    # ImageNet
-    input_height = input_width = 227
-    input_channels = 3
-    output_classes = 10
-    """
-
-    """
-    # CIFAR10
-    input_height = input_width = 32
-    input_channels = 3
-    output_classes = 10
-    (x_train, y_train), (x_test, y_test) = cifar10.load_data()
-    """
-
-    # """
-    # MNIST
-    input_height = input_width = 28
-    input_channels = 1
-    output_classes = 10
-    (x_train, y_train), (x_test, y_test) = mnist.load_data()
-    x_train = np.expand_dims(x_train, -1)
-    x_test = np.expand_dims(x_test, -1)
-    y_train = np.expand_dims(y_train, -1)
-    y_test = np.expand_dims(y_test, -1)
-    # """
+    # Load dimensions and data
+    (input_height, input_width, input_channels), output_classes, (x_train, y_train), (x_test, y_test) = load_dataset("mnist")
 
     x_train, mu_train, sigma_train = prepare_input(x_train)
     x_test, _, _ = prepare_input(x_test, mu_train, sigma_train)
@@ -214,7 +200,7 @@ def run(iterations, minibatch_size):
             mb_data = x_train[mb_start:mb_end, :, :, :]
             mb_labels = y_train[mb_start:mb_end, :]
 
-            _loss, _accuracy, s, _ = sess.run([loss, accuracy, optimizer], feed_dict = {
+            _loss, _accuracy, _ = sess.run([loss, accuracy, optimizer], feed_dict = {
                 input_batch: mb_data,
                 labels: mb_labels,
                 in_training: True,
@@ -222,15 +208,13 @@ def run(iterations, minibatch_size):
             })
 
             if i % 100 == 0:
-                test_acc, sum_acc = sess.run([accuracy], feed_dict = {
+                test_acc = sess.run(accuracy, feed_dict = {
                     input_batch: x_test,
                     labels: y_test,
                     in_training: False,
                     learning_rate: 0.0004
                 })
-                print('Iteration: {}\t loss: {:.3f}\t accuracy: {:.3f}\t test accuracy: {:.3f}'.format(i, _loss, _accuracy, test_acc))
+                print('Iteration: {}\tloss: {:.3f}\t train accuracy: {:.3f}\ttest accuracy: {:.3f}'.format(i, _loss, _accuracy, test_acc))
 
 
-start = dt.now()
 run(10001, 128)
-print('running time:', dt.now() - start)
