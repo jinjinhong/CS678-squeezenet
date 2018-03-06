@@ -72,68 +72,68 @@ def model(input_height, input_width, input_channels, output_classes, pooling_siz
     :param pooling_size: size of the pooling
     :return: list of input placeholders and output operations
     """
-    with tf.Graph().as_default() as graph:
-        # define placeholders
-        input_image = tf.placeholder(tf.float32, shape = [None, input_height, input_width, input_channels], name = 'input_image')
-        labels = tf.placeholder(tf.int32, shape = [None, 1])
-        in_training = tf.placeholder(tf.bool, shape = ())
-        learning_rate = tf.placeholder(tf.float32, shape = ())
 
-        # define structure of the net
-        # layer 1 - conv 1
-        with tf.name_scope('conv_1'):
-            W_conv1 = tf.Variable(tf.contrib.layers.xavier_initializer()([7, 7, input_channels, 96]))
-            b_conv1 = tf.Variable(tf.zeros([1, 1, 1, 96]))
-            X_1 = tf.nn.conv2d(input_image, W_conv1, strides = (1, 2, 2, 1), padding = 'VALID') + b_conv1
-            A_1 = tf.nn.relu(X_1)
+    # define placeholders
+    input_image = tf.placeholder(tf.float32, shape = [None, input_height, input_width, input_channels], name = 'input_image')
+    labels = tf.placeholder(tf.int32, shape = [None, 1])
+    in_training = tf.placeholder(tf.bool, shape = ())
+    learning_rate = tf.placeholder(tf.float32, shape = ())
 
-        # layer 2 - maxpool
-        maxpool_1 = tf.nn.max_pool(A_1, ksize = pooling_size, strides = (1, 2, 2, 1), padding = 'VALID', name = 'maxpool_1')
+    # define structure of the net
+    # layer 1 - conv 1
+    with tf.name_scope('conv_1'):
+        W_conv1 = tf.Variable(tf.contrib.layers.xavier_initializer()([7, 7, input_channels, 96]))
+        b_conv1 = tf.Variable(tf.zeros([1, 1, 1, 96]))
+        X_1 = tf.nn.conv2d(input_image, W_conv1, strides = (1, 2, 2, 1), padding = 'VALID') + b_conv1
+        A_1 = tf.nn.relu(X_1)
 
-        # layer 3-5 - fire modules
-        fire_2 = fire_module(maxpool_1, 16, 64, 64, "2")
-        fire_3 = fire_module(fire_2, 16, 64, 64, "3")
-        fire_4 = fire_module(fire_3, 32, 128, 128, "4")
+    # layer 2 - maxpool
+    maxpool_1 = tf.nn.max_pool(A_1, ksize = pooling_size, strides = (1, 2, 2, 1), padding = 'VALID', name = 'maxpool_1')
 
-        # layer 6 - maxpool
-        maxpool_4 = tf.nn.max_pool(fire_4, ksize = pooling_size, strides = (1, 2, 2, 1), padding = 'VALID', name = 'maxpool_4')
+    # layer 3-5 - fire modules
+    fire_2 = fire_module(maxpool_1, 16, 64, 64, "2")
+    fire_3 = fire_module(fire_2, 16, 64, 64, "3")
+    fire_4 = fire_module(fire_3, 32, 128, 128, "4")
 
-        # layer 7-10 - fire modules
-        fire_5 = fire_module(maxpool_4, 32, 128, 128, "5")
-        fire_6 = fire_module(fire_5, 48, 192, 192, "6")
-        fire_7 = fire_module(fire_6, 48, 192, 192, "7")
-        fire_8 = fire_module(fire_7, 64, 256, 256, "8")
+    # layer 6 - maxpool
+    maxpool_4 = tf.nn.max_pool(fire_4, ksize = pooling_size, strides = (1, 2, 2, 1), padding = 'VALID', name = 'maxpool_4')
 
-        # layer 11 - maxpool
-        maxpool_8 = tf.nn.max_pool(fire_8, ksize = pooling_size, strides = (1, 2, 2, 1), padding = 'VALID', name = 'maxpool_8')
+    # layer 7-10 - fire modules
+    fire_5 = fire_module(maxpool_4, 32, 128, 128, "5")
+    fire_6 = fire_module(fire_5, 48, 192, 192, "6")
+    fire_7 = fire_module(fire_6, 48, 192, 192, "7")
+    fire_8 = fire_module(fire_7, 64, 256, 256, "8")
 
-        # layer 12 - fire 9 + dropout
-        fire_9 = fire_module(maxpool_8, 64, 256, 256, "9")
+    # layer 11 - maxpool
+    maxpool_8 = tf.nn.max_pool(fire_8, ksize = pooling_size, strides = (1, 2, 2, 1), padding = 'VALID', name = 'maxpool_8')
 
-        dropout_9 = tf.cond(in_training, lambda: tf.nn.dropout(fire_9, keep_prob = 0.5), lambda: fire_9)
+    # layer 12 - fire 9 + dropout
+    fire_9 = fire_module(maxpool_8, 64, 256, 256, "9")
 
-        # layer 13 - final
-        with tf.name_scope('final'):
-            W_conv10 = tf.Variable(tf.contrib.layers.xavier_initializer()([1, 1, 512, output_classes]))
-            b_conv10 = tf.Variable(tf.zeros([1, 1, 1, output_classes]))
-            conv_10 = tf.nn.conv2d(dropout_9, W_conv10, strides = (1, 1, 1, 1), padding = 'VALID') + b_conv10
-            A_conv_10 = tf.nn.relu(conv_10)
+    dropout_9 = tf.cond(in_training, lambda: tf.nn.dropout(fire_9, keep_prob = 0.5), lambda: fire_9)
 
-        # avg pooling to get [1 x 1 x num_classes] must average over entire window oh H x W from input layer
-        _, H_last, W_last, _ = A_conv_10.get_shape().as_list()
-        pooled = tf.nn.avg_pool(A_conv_10, ksize = (1, H_last, W_last, 1), strides = (1, 1, 1, 1), padding = 'VALID')
-        logits = tf.squeeze(pooled, axis = [1, 2])
+    # layer 13 - final
+    with tf.name_scope('final'):
+        W_conv10 = tf.Variable(tf.contrib.layers.xavier_initializer()([1, 1, 512, output_classes]))
+        b_conv10 = tf.Variable(tf.zeros([1, 1, 1, output_classes]))
+        conv_10 = tf.nn.conv2d(dropout_9, W_conv10, strides = (1, 1, 1, 1), padding = 'VALID') + b_conv10
+        A_conv_10 = tf.nn.relu(conv_10)
 
-        # loss + optimizer
-        one_hot_labels = tf.one_hot(labels, output_classes, name = 'one_hot_encoding')
-        loss = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits_v2(labels = one_hot_labels, logits = logits))
-        optimizer = tf.train.AdamOptimizer(learning_rate).minimize(loss)
+    # avg pooling to get [1 x 1 x num_classes] must average over entire window oh H x W from input layer
+    _, H_last, W_last, _ = A_conv_10.get_shape().as_list()
+    pooled = tf.nn.avg_pool(A_conv_10, ksize = (1, H_last, W_last, 1), strides = (1, 1, 1, 1), padding = 'VALID')
+    logits = tf.squeeze(pooled, axis = [1, 2])
 
-        # accuracy
-        predictions = tf.reshape(tf.argmax(tf.nn.softmax(logits), axis = 1, output_type = tf.int32), [-1, 1])
-        accuracy = tf.reduce_mean(tf.cast(tf.equal(predictions, labels), dtype = tf.float32))
+    # loss + optimizer
+    one_hot_labels = tf.one_hot(labels, output_classes, name = 'one_hot_encoding')
+    loss = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits_v2(labels = one_hot_labels, logits = logits))
+    optimizer = tf.train.AdamOptimizer(learning_rate).minimize(loss)
 
-    return graph, input_image, labels, in_training, learning_rate, loss, accuracy, optimizer
+    # accuracy
+    predictions = tf.reshape(tf.argmax(tf.nn.softmax(logits), axis = 1, output_type = tf.int32), [-1, 1])
+    accuracy = tf.reduce_mean(tf.cast(tf.equal(predictions, labels), dtype = tf.float32))
+
+    return input_image, labels, in_training, learning_rate, loss, accuracy, optimizer
 
 def prepare_input(data, mean = None, standard_deviation = None):
     """
@@ -184,9 +184,9 @@ def run(iterations, minibatch_size):
     x_test, _, _ = prepare_input(x_test, mu_train, sigma_train)
     train_samples = x_train.shape[0]
 
-    graph, input_batch, labels, in_training, learning_rate, loss, accuracy, optimizer = model(input_height, input_width, input_channels, output_classes, (1, 2, 2, 1))
+    input_batch, labels, in_training, learning_rate, loss, accuracy, optimizer = model(input_height, input_width, input_channels, output_classes, (1, 2, 2, 1))
 
-    with tf.Session(graph = graph) as sess:
+    with tf.Session() as sess:
         sess.run(tf.global_variables_initializer())
 
         for i in range(iterations):
