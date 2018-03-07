@@ -77,7 +77,6 @@ def model(input_height, input_width, input_channels, output_classes, pooling_siz
     input_image = tf.placeholder(tf.float32, shape = [None, input_height, input_width, input_channels], name = 'input_image')
     labels = tf.placeholder(tf.int32, shape = [None, 1])
     in_training = tf.placeholder(tf.bool, shape = ())
-    learning_rate = tf.placeholder(tf.float32, shape = ())
 
     # define structure of the net
     # layer 1 - conv 1
@@ -110,7 +109,7 @@ def model(input_height, input_width, input_channels, output_classes, pooling_siz
     # layer 12 - fire 9 + dropout
     fire_9 = fire_module(maxpool_8, 64, 256, 256, "9")
 
-    dropout_9 = tf.cond(in_training, lambda: tf.nn.dropout(fire_9, keep_prob = 0.5), lambda: fire_9)
+    dropout_9 = tf.cond(in_training, lambda: tf.nn.dropout(fire_9, keep_prob = DROPOUT_KEEP_PROB), lambda: fire_9)
 
     # layer 13 - final
     with tf.name_scope('final'):
@@ -127,13 +126,13 @@ def model(input_height, input_width, input_channels, output_classes, pooling_siz
     # loss + optimizer
     one_hot_labels = tf.one_hot(labels, output_classes, name = 'one_hot_encoding')
     loss = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits_v2(labels = one_hot_labels, logits = logits))
-    optimizer = tf.train.AdamOptimizer(learning_rate).minimize(loss)
+    optimizer = tf.train.AdamOptimizer(LEARNING_RATE, beta1 = MOMENTUM).minimize(loss)
 
     # accuracy
     predictions = tf.reshape(tf.argmax(tf.nn.softmax(logits), axis = 1, output_type = tf.int32), [-1, 1])
     accuracy = tf.reduce_mean(tf.cast(tf.equal(predictions, labels), dtype = tf.float32))
 
-    return input_image, labels, in_training, learning_rate, loss, accuracy, optimizer
+    return input_image, labels, in_training, loss, accuracy, optimizer
 
 def prepare_input(data, mean = None, standard_deviation = None):
     """
@@ -153,7 +152,7 @@ def prepare_input(data, mean = None, standard_deviation = None):
     data = data / standard_deviation
     return data, mean, standard_deviation
 
-def load_dataset(dataset = "cifar10"):
+def load_dataset(dataset):
     """
     Loads data set and returns information about dimensionality and train/test splits
 
@@ -176,15 +175,19 @@ def load_dataset(dataset = "cifar10"):
     else:
         raise NotImplementedError("Unsupported data set: {}".format(dataset))
 
-def run(iterations, minibatch_size):
+def run(iterations, minibatch_size, dataset = "mnist", learning_rate = 4e-4, use_xavier = True, dropout_keep_prob = .6, momentum = .9):
+    global LEARNING_RATE, XAVIER, DROPOUT_KEEP_PROB, MOMENTUM
+    LEARNING_RATE, XAVIER, DROPOUT_KEEP_PROB, MOMENTUM = learning_rate, use_xavier, dropout_keep_prob, momentum
+    print(dataset, learning_rate, use_xavier, dropout_keep_prob, momentum)
+
     # Load dimensions and data
-    (input_height, input_width, input_channels), output_classes, (x_train, y_train), (x_test, y_test) = load_dataset("mnist")
+    (input_height, input_width, input_channels), output_classes, (x_train, y_train), (x_test, y_test) = load_dataset(dataset)
 
     x_train, mu_train, sigma_train = prepare_input(x_train)
     x_test, _, _ = prepare_input(x_test, mu_train, sigma_train)
     train_samples = x_train.shape[0]
 
-    input_batch, labels, in_training, learning_rate, loss, accuracy, optimizer = model(input_height, input_width, input_channels, output_classes, (1, 2, 2, 1))
+    input_batch, labels, in_training, loss, accuracy, optimizer = model(input_height, input_width, input_channels, output_classes, (1, 2, 2, 1))
 
     with tf.Session() as sess:
         sess.run(tf.global_variables_initializer())
@@ -199,17 +202,17 @@ def run(iterations, minibatch_size):
             _loss, _accuracy, _ = sess.run([loss, accuracy, optimizer], feed_dict = {
                 input_batch: mb_data,
                 labels: mb_labels,
-                in_training: True,
-                learning_rate: 0.0004
+                in_training: True
             })
 
             if i % 100 == 0:
                 test_acc = sess.run(accuracy, feed_dict = {
                     input_batch: x_test,
                     labels: y_test,
-                    in_training: False,
-                    learning_rate: 0.0004
+                    in_training: False
                 })
                 print('Iteration: {}\tloss: {:.3f}\t train accuracy: {:.3f}\ttest accuracy: {:.3f}'.format(i, _loss, _accuracy, test_acc))
 
-run(10001, 128)
+
+# run(50001, 128, dataset = "mnist", momentum = .5)
+run(50001, 128, dataset = "mnist", momentum = .99)
