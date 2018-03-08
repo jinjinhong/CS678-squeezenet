@@ -175,7 +175,7 @@ def load_dataset(dataset):
     else:
         raise NotImplementedError("Unsupported data set: {}".format(dataset))
 
-def run(iterations, minibatch_size, dataset = "mnist", learning_rate = 4e-4, use_xavier = True, dropout_keep_prob = .6, momentum = .9):
+def run(iterations, minibatch_size = 128, dataset = "mnist", learning_rate = 4e-4, use_xavier = True, dropout_keep_prob = .6, momentum = .9):
     global LEARNING_RATE, XAVIER, DROPOUT_KEEP_PROB, MOMENTUM
     LEARNING_RATE, XAVIER, DROPOUT_KEEP_PROB, MOMENTUM = learning_rate, use_xavier, dropout_keep_prob, momentum
     print(dataset, learning_rate, use_xavier, dropout_keep_prob, momentum)
@@ -214,5 +214,4 @@ def run(iterations, minibatch_size, dataset = "mnist", learning_rate = 4e-4, use
                 print('Iteration: {}\tloss: {:.3f}\t train accuracy: {:.3f}\ttest accuracy: {:.3f}'.format(i, _loss, _accuracy, test_acc))
 
 
-# run(50001, 128, dataset = "mnist", momentum = .5)
-run(50001, 128, dataset = "mnist", momentum = .99)
+run(50001)
