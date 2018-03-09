@@ -17,13 +17,13 @@ def expand(input, e1x1, e3x3):
 
 	w1x1 = tf.Variable(tf.contrib.layers.xavier_initializer()([1, 1, in_D, e1x1]))
 	b1x1 = tf.Variable(tf.zeros([1, 1, 1, e1x1]))
-	o1x1 = A(tf.nn.conv2d(input, w1x1, strides=(1,1,1,1), padding='VALID') + b1x1)
+	c1x1 = A(tf.nn.conv2d(input, w1x1, strides=(1,1,1,1), padding='VALID') + b1x1)
 
 	w3x3 = tf.Variable(tf.contrib.layers.xavier_initializer()([1, 1, in_D, e3x3]))
 	b3x3 = tf.Variable(tf.zeros([1, 1, 1, e3x3]))
-	o3x3 = A(tf.nn.conv2d(input, w3x3, strides=(1, 1, 1, 1), padding='SAME') + b3x3)
+	c3x3 = A(tf.nn.conv2d(input, w3x3, strides=(1, 1, 1, 1), padding='SAME') + b3x3)
 
-	return tf.concat([o1x1, o3x3], axis = 3)
+	return tf.concat([c1x1, c3x3], axis = 3)
 
 
 def fire(input, s1x1, e1x1, e3x3):
